@@ -7,16 +7,17 @@ async function main() {
   // Constructor parameters
   const defaultAdmin = deployer.address;
   const feeCollector = deployer.address; // You can change this to a different address
-  const feeMaximumNumerator = 3; // 3% maximum fee
+  const feeMaximumNumerator = 5; // 5% maximum fee
   const feeDenominator = 100;
   const fees = {
     buy: 2,  // 2% buy fee
     sell: 2   // 2% sell fee
   };
   const antiBotFees = {
-    buy: 2,  // 2% antibot buy fee
-    sell: 2   // 2% antibot sell fee
+    buy: 25,  // 25% antibot buy fee
+    sell: 25  // 25% antibot sell fee
   };
+  const initialFeeWaiverThreshold = hre.ethers.parseEther("35000"); // 35,000 tokens for fee waiver
   const antibotEndTimestamp = Math.floor(Date.now() / 1000) + 86400; // 24 hours from now
   const maxSupply = hre.ethers.parseEther("1000000000"); // Equivalent to 1,000,000,000 tokens
   // Explicitly specify the contract from RandomDEX.sol
@@ -29,7 +30,8 @@ async function main() {
     fees,
     antiBotFees,
     antibotEndTimestamp,
-    maxSupply
+    maxSupply,
+    initialFeeWaiverThreshold
   );
 
   await randomDEX.waitForDeployment();

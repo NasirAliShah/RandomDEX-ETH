@@ -11,7 +11,6 @@ import "../libraries/ERC20Fee.sol";
  * @notice RandomDEX token with cross-chain mint/burn functionality and fee exemptions for specific users.
  */
 contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
-       /// @dev Role for Axelar Router to call mint and burn
     bytes32 public constant MINT_ROLE = keccak256("MINT_ROLE");
     bytes32 public constant BURN_ROLE = keccak256("BURN_ROLE");
     bytes32 public constant WHITELIST_MANAGER_ROLE = keccak256("WHITELIST_MANAGER_ROLE");
@@ -22,20 +21,12 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
     /// @dev Maximum supply that can be minted on this chain
     uint256 public maxSupply;
 
-    /// @dev Minimum balance for fee waiver (25,000 tokens)
-    uint256 private constant FEE_WAIVER_THRESHOLD = 25_000 * 10 ** 18;
+    /// @dev Minimum balance for fee waiver
+    uint256 public feeWaiverThreshold;
 
-    /**
-     * @notice Contract constructor.
-     * @param defaultAdmin_ The admin address (typically the deployer or Axelar manager).
-     * @param feeCollector_ The address to collect transaction fees.
-     * @param feeMaximumNumerator_ The maximum numerator for fee calculations.
-     * @param feeDenominator_ The denominator for fee calculations.
-     * @param fees_ The standard fee percentages.
-     * @param antiBotFees_ The antibot fee percentages.
-     * @param antibotEndTimestamp_ The timestamp at which antibot fees end.
-     * @param maxSupply_ The maximum supply that can be minted on Ethereum.
-     */
+    /// @dev Event emitted when the fee waiver threshold is updated
+    event FeeWaiverThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
+
     constructor(
         address defaultAdmin_,
         address feeCollector_,
@@ -44,7 +35,8 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
         Fees memory fees_,
         Fees memory antiBotFees_,
         uint256 antibotEndTimestamp_,
-        uint256 maxSupply_
+        uint256 maxSupply_,
+        uint256 initialFeeWaiverThreshold_
     )
         ERC20("RandomDEX", "RDX")
         ERC20Permit("RandomDEX")
@@ -63,9 +55,10 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
         require(maxSupply_ > 0, "Max supply must be greater than zero");
 
         maxSupply = maxSupply_;
+        feeWaiverThreshold = initialFeeWaiverThreshold_;
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin_);
-        _grantRole(MINT_ROLE, defaultAdmin_);
-        _grantRole(BURN_ROLE, defaultAdmin_);
+        // _grantRole(MINT_ROLE, defaultAdmin_);
+        // _grantRole(BURN_ROLE, defaultAdmin_);
         _grantRole(WHITELIST_MANAGER_ROLE, defaultAdmin_);
     }
 
@@ -95,6 +88,19 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
     }
 
     /**
+     * @notice Update the fee waiver threshold for fee exemptions.
+     * @dev Only callable by accounts with `DEFAULT_ADMIN_ROLE`.
+     * @param newThreshold The new threshold for fee exemption.
+     */
+    function updateFeeWaiverThreshold(uint256 newThreshold) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newThreshold > 0, "Threshold must be greater than zero");
+        uint256 oldThreshold = feeWaiverThreshold;
+        feeWaiverThreshold = newThreshold;
+
+        emit FeeWaiverThresholdUpdated(oldThreshold, newThreshold);
+    }
+
+    /**
      * @notice Override `_computeFee` to add fee exemption for specific users.
      * @param sender The address initiating the transaction.
      * @param from The sender of the tokens.
@@ -110,11 +116,11 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
         override
         returns (uint256 fee, uint256 remaining)
     {
-        // Admins, whitelisted addresses, or users holding >= 25,000 RDX are exempt from fees
+        // Admins, whitelisted addresses, or users holding >= feeWaiverThreshold are exempt from fees
         if (
             hasRole(DEFAULT_ADMIN_ROLE, sender) ||
             _whitelist[from] ||
-            balanceOf(from) >= FEE_WAIVER_THRESHOLD
+            balanceOf(from) >= feeWaiverThreshold
         ) {
             return (0, value);
         }
