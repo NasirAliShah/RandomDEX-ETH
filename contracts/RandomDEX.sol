@@ -57,16 +57,11 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
         maxSupply = maxSupply_;
         feeWaiverThreshold = initialFeeWaiverThreshold_;
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin_);
-        // _grantRole(MINT_ROLE, defaultAdmin_);
-        // _grantRole(BURN_ROLE, defaultAdmin_);
+        _grantRole(MINT_ROLE, defaultAdmin_);
+        _grantRole(BURN_ROLE, defaultAdmin_);
         _grantRole(WHITELIST_MANAGER_ROLE, defaultAdmin_);
     }
 
-    /**
-     * @notice Mint tokens to a specified address (authorized by Axelar or admin).
-     * @param to The address to mint tokens to.
-     * @param amount The amount of tokens to mint.
-     */
     function mint(address to, uint256 amount) external onlyRole(MINT_ROLE) {
         require(to != address(0), "Mint to zero address");
         require(amount > 0, "Mint amount must be greater than zero");
@@ -75,11 +70,6 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
         _mint(to, amount);
     }
 
-    /**
-     * @notice Burn tokens from a specified address (authorized by Axelar or admin).
-     * @param from The address to burn tokens from.
-     * @param amount The amount of tokens to burn.
-     */
     function burn(address from, uint256 amount) external onlyRole(BURN_ROLE) {
         require(from != address(0), "Burn from zero address");
         require(amount > 0, "Burn amount must be greater than zero");
@@ -87,11 +77,6 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
         _burn(from, amount);
     }
 
-    /**
-     * @notice Update the fee waiver threshold for fee exemptions.
-     * @dev Only callable by accounts with `DEFAULT_ADMIN_ROLE`.
-     * @param newThreshold The new threshold for fee exemption.
-     */
     function updateFeeWaiverThreshold(uint256 newThreshold) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(newThreshold > 0, "Threshold must be greater than zero");
         uint256 oldThreshold = feeWaiverThreshold;
@@ -101,57 +86,51 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
     }
 
     /**
-     * @notice Override `_computeFee` to add fee exemption for specific users.
-     * @param sender The address initiating the transaction.
-     * @param from The sender of the tokens.
-     * @param to The recipient of the tokens.
-     * @param value The amount of tokens being transferred.
-     * @return fee The calculated fee.
-     * @return remaining The amount remaining after the fee is deducted.
+     * @notice Override _update to handle fee collection and exemptions
      */
-    function _computeFee(address sender, address from, address to, uint256 value)
-        internal
-        view
-        virtual
-        override
-        returns (uint256 fee, uint256 remaining)
-    {
-        // Admins, whitelisted addresses, or users holding >= feeWaiverThreshold are exempt from fees
+    function _update(
+        address from,
+        address to,
+        uint256 amount
+    ) internal virtual override(ERC20) {
+        // Skip fee calculation for minting and burning
+        if (from == address(0) || to == address(0)) {
+            super._update(from, to, amount);
+            return;
+        }
+
+        // Check for fee exemptions
         if (
-            hasRole(DEFAULT_ADMIN_ROLE, sender) ||
+            hasRole(DEFAULT_ADMIN_ROLE, _msgSender()) ||
             _whitelist[from] ||
             balanceOf(from) >= feeWaiverThreshold
         ) {
-            return (0, value);
+            super._update(from, to, amount);
+            return;
         }
 
-        // Use the existing fee calculation logic from `ERC20Fee`
-        return super._computeFee(sender, from, to, value);
+        // Calculate fees using the base ERC20Fee logic
+        (uint256 fee, uint256 rest) = super._computeFee(_msgSender(), from, to, amount);
+
+        // If there's a fee, transfer it to the fee collector
+        if (fee > 0) {
+            super._transfer(from, feeCollector, fee);
+        }
+
+        // Transfer the remaining amount
+        super._update(from, to, rest);
     }
 
-    /**
-     * @notice Add an address to the whitelist (fee exemption).
-     * @param account The address to whitelist.
-     */
     function addToWhitelist(address account) external onlyRole(WHITELIST_MANAGER_ROLE) {
         require(account != address(0), "Invalid address");
         _whitelist[account] = true;
     }
 
-    /**
-     * @notice Remove an address from the whitelist (fee exemption).
-     * @param account The address to remove from the whitelist.
-     */
     function removeFromWhitelist(address account) external onlyRole(WHITELIST_MANAGER_ROLE) {
         require(account != address(0), "Invalid address");
         _whitelist[account] = false;
     }
 
-    /**
-     * @notice Check if an address is whitelisted.
-     * @param account The address to check.
-     * @return True if the address is whitelisted, otherwise false.
-     */
     function isWhitelisted(address account) external view returns (bool) {
         return _whitelist[account];
     }
