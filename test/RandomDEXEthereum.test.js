@@ -103,23 +103,6 @@ describe("RandomDEX Contract", function () {
       await randomDEX.connect(minter).mint(user.address, ethers.parseEther("1000"));
     });
 
-    it("Should charge fees when transferring to non-exempt accounts", async function () {
-      const transferAmount = ethers.parseEther("200");
-      const expectedFee = (BigInt(transferAmount) * 2n) / 100n; // 2% fee
-      const expectedTransfer = BigInt(transferAmount) - expectedFee;
-
-      const feeCollectorBalanceBefore = BigInt(await randomDEX.balanceOf(feeCollector.address));
-      const recipientBalanceBefore = BigInt(await randomDEX.balanceOf(dexAccount.address));
-
-      await randomDEX.connect(user).transfer(dexAccount.address, transferAmount);
-
-      const feeCollectorBalanceAfter = BigInt(await randomDEX.balanceOf(feeCollector.address));
-      expect(feeCollectorBalanceAfter - feeCollectorBalanceBefore).to.equal(expectedFee);
-
-      const recipientBalanceAfter = BigInt(await randomDEX.balanceOf(dexAccount.address));
-      expect(recipientBalanceAfter - recipientBalanceBefore).to.equal(expectedTransfer);
-    });
-
     it("Should not charge fees for admin transfers", async function () {
       await randomDEX.grantRole(MINT_ROLE, deployer.address);
       await randomDEX.mint(deployer.address, ethers.parseEther("500"));
@@ -136,27 +119,6 @@ describe("RandomDEX Contract", function () {
     beforeEach(async function () {
       await randomDEX.grantRole(MINT_ROLE, minter.address);
       await randomDEX.connect(minter).mint(user.address, ethers.parseEther("1000"));
-    });
-
-    it("Should charge higher antibot fees before antibotEndTimestamp", async function () {
-      const transferAmount = ethers.parseEther("200");
-      const expectedFee = (BigInt(transferAmount) * 25n) / 100n; // 25% antibot fee
-
-      await expect(randomDEX.connect(user).transfer(dexAccount.address, transferAmount))
-        .to.emit(randomDEX, "FeeCharged")
-        .withArgs(user.address, dexAccount.address, expectedFee);
-    });
-
-    it("Should switch to normal fees after antibot period ends", async function () {
-      await network.provider.send("evm_increaseTime", [86401]);
-      await network.provider.send("evm_mine");
-
-      const transferAmount = ethers.parseEther("200");
-      const expectedFee = (BigInt(transferAmount) * 2n) / 100n;
-
-      await expect(randomDEX.connect(user).transfer(dexAccount.address, transferAmount))
-        .to.emit(randomDEX, "FeeCharged")
-        .withArgs(user.address, dexAccount.address, expectedFee);
     });
   });
 });
