@@ -20,7 +20,7 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
     event TokensMinted(address indexed to, uint256 amount);
     event TokensBurned(address indexed from, uint256 amount);
     event FeeCharged(address indexed from, address indexed to, uint256 fee);
-    event TransferCompleted(address indexed from, address indexed to, uint256 amount);
+    event TokensBridged(address indexed from, address indexed to, uint256 amount);
 
     /**
      * @dev Constructor to initialize the RandomDEX token with all required parameters.
@@ -109,7 +109,7 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
         // Skip fee calculation for minting and burning
         if (from == address(0) || to == address(0)) {
             super._update(from, to, amount);
-            emit TransferCompleted(from, to, amount);
+            emit TokensBridged(from, to, amount);
             return;
         }
 
@@ -125,6 +125,5 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
 
         // Transfer the remaining amount
         super._update(from, to, rest);
-        emit TransferCompleted(from, to, rest);
     }
 }
