@@ -55,14 +55,14 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
             antibotEndTimestamp_
         )
     {
-        require(defaultAdmin_ != address(0), "Invalid admin address");
-        require(feeCollector_ != address(0), "Invalid fee collector address");
-        require(maxSupply_ > 0, "Max supply must be greater than zero");
+        require(defaultAdmin_ != address(0), "RandomDEX: invalid admin address");
+        require(feeCollector_ != address(0), "RandomDEX: invalid fee collector address");
+        require(maxSupply_ > 0, "RandomDEX: max supply must be greater than zero");
 
         // Initialize state variables
         maxSupply = maxSupply_;
 
-        // Grant roles to the default admin
+        // Grant role to the default admin address
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin_);
         
     }
@@ -75,9 +75,9 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
      * @param amount The amount of tokens to mint.
      */
     function mint(address to, uint256 amount) external onlyRole(MINT_ROLE) {
-        require(to != address(0), "Mint to zero address");
-        require(amount > 0, "Mint amount must be greater than zero");
-        require(totalSupply() + amount <= maxSupply, "Exceeds maximum supply");
+        require(to != address(0), "RandomDEX: invalid receiver address");
+        require(amount > 0, "RandomDEX: invalid token amount");
+        require(totalSupply() + amount <= maxSupply, "RandomDEX: maximum supply exceeded");
 
         _mint(to, amount);
         emit TokensMinted(to, amount);
@@ -91,8 +91,8 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
      * @param amount The amount of tokens to burn.
      */
     function burn(address from, uint256 amount) external onlyRole(BURN_ROLE) {
-        require(from != address(0), "Burn from zero address");
-        require(amount > 0, "Burn amount must be greater than zero");
+        require(from != address(0), "RandomDEX: invalid sender address");
+        require(amount > 0, "RandomDEX: invalid token amount");
 
         _burn(from, amount);
         emit TokensBurned(from, amount);

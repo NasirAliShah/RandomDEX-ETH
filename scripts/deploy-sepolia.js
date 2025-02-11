@@ -10,8 +10,8 @@ async function main() {
   const feeMaximumNumerator = 5; // 5% maximum fee
   const feeDenominator = 100;
   const fees = {
-    buy: 2,  // 2% buy fee
-    sell: 2   // 2% sell fee
+    buy: 5,  // 2% buy fee
+    sell: 5   // 2% sell fee
   };
   const antiBotFees = {
     buy: 25,  // 25% antibot buy fee
