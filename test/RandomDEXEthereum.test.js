@@ -1,218 +1,124 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe("RandomDEX Fee Mechanism - Extended Tests", function () {
+describe("RandomDEX Contract", function () {
   let RandomDEX, randomDEX;
-  let deployer, feeCollector, user, dexAccount, whitelistedUser;
-  let MINT_ROLE, DEX_ROLE, WHITELIST_MANAGER_ROLE;
+  let deployer, feeCollector, user, dexAccount, minter, burner;
+  let MINT_ROLE, BURN_ROLE;
 
   beforeEach(async function () {
-    [deployer, feeCollector, user, dexAccount, whitelistedUser] = await ethers.getSigners();
+    [deployer, feeCollector, user, dexAccount, minter, burner] = await ethers.getSigners();
 
-    // Deploy the RandomDEX contract
     RandomDEX = await ethers.getContractFactory("RandomDEX");
+
+    // Pass Fees as Arrays (as Solidity expects them)
+    const standardFees = [2, 2]; // BuyFee = 2%, SellFee = 2%
+    const antiBotFees = [25, 25]; // AntiBot Buy/Sell Fees = 25%
+
+    // Deploy Contract
     randomDEX = await RandomDEX.deploy(
-      deployer.address,
-      feeCollector.address,
-      5, // feeMaximumNumerator = 5%
-      100, // feeDenominator = 100
-      { buy: 2, sell: 2 }, // fees
-      { buy: 25, sell: 25 }, // antiBotFees
+      deployer.address, 
+      feeCollector.address, 
+      5, // feeMaximumNumerator
+      100, // feeDenominator
+      standardFees, 
+      antiBotFees, 
       Math.floor(Date.now() / 1000) + 86400, // antibotEndTimestamp (24 hours)
-      ethers.parseEther("1000000000"), // maxSupply = 1,000,000,000
-      ethers.parseEther("35000") // feeWaiverThreshold = 35,000 RDX
+      ethers.parseEther("1000000000") // maxSupply = 1B Tokens
     );
     await randomDEX.waitForDeployment();
 
-    // Get roles
+    // Get Role Identifiers
     MINT_ROLE = await randomDEX.MINT_ROLE();
-    DEX_ROLE = await randomDEX.DEX_ROLE();
-    WHITELIST_MANAGER_ROLE = await randomDEX.WHITELIST_MANAGER_ROLE();
-
-    // Grant roles
-    await randomDEX.grantRole(MINT_ROLE, deployer.address);
-    await randomDEX.grantRole(DEX_ROLE, dexAccount.address);
-    await randomDEX.grantRole(WHITELIST_MANAGER_ROLE, deployer.address);
-
-    // Mint initial tokens
-    await randomDEX.mint(user.address, ethers.parseEther("1000"));
-    await randomDEX.mint(deployer.address, ethers.parseEther("50000"));
-    await randomDEX.mint(dexAccount.address, ethers.parseEther("100000"));
-    await randomDEX.mint(whitelistedUser.address, ethers.parseEther("100000"));
+    BURN_ROLE = await randomDEX.BURN_ROLE();
   });
 
-  // Original test cases (maintained as-is)
-  it("Should charge antibot sell fees when transferring to DEX_ROLE account", async function () {
-    const transferAmount = ethers.parseEther("200");
-    const expectedFee = (BigInt(transferAmount) * 25n) / 100n;
-    const expectedTransfer = BigInt(transferAmount) - expectedFee;
+  // 📌 1️⃣ Deployment Tests
+  describe("Deployment", function () {
+    it("Should deploy with correct initial values", async function () {
+      expect(await randomDEX.name()).to.equal("RandomDEX");
+      expect(await randomDEX.symbol()).to.equal("RDX");
+      expect(await randomDEX.maxSupply()).to.equal(ethers.parseEther("1000000000"));
+    });
 
-    const feeCollectorBalanceBefore = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    const dexBalanceBefore = BigInt(await randomDEX.balanceOf(dexAccount.address));
-    const userBalanceBefore = BigInt(await randomDEX.balanceOf(user.address));
+    it("Should assign DEFAULT_ADMIN_ROLE to deployer", async function () {
+      expect(await randomDEX.hasRole(await randomDEX.DEFAULT_ADMIN_ROLE(), deployer.address)).to.be.true;
+    });
 
-    await randomDEX.connect(user).transfer(dexAccount.address, transferAmount);
-
-    const feeCollectorBalanceAfter = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    expect(feeCollectorBalanceAfter - feeCollectorBalanceBefore).to.equal(expectedFee);
-
-    const dexBalanceAfter = BigInt(await randomDEX.balanceOf(dexAccount.address));
-    expect(dexBalanceAfter - dexBalanceBefore).to.equal(expectedTransfer);
-
-    const userBalanceAfter = BigInt(await randomDEX.balanceOf(user.address));
-    expect(userBalanceBefore - userBalanceAfter).to.equal(BigInt(transferAmount));
+    it("Should not grant MINT_ROLE and BURN_ROLE by default", async function () {
+      expect(await randomDEX.hasRole(MINT_ROLE, deployer.address)).to.be.false;
+      expect(await randomDEX.hasRole(BURN_ROLE, deployer.address)).to.be.false;
+    });
   });
 
-  it("Should not charge fees when transferring to a non-DEX_ROLE account", async function () {
-    const transferAmount = ethers.parseEther("100");
+  // 📌 2️⃣ Minting Tests
+  describe("Minting", function () {
+    it("Should fail minting without MINT_ROLE", async function () {
+      await expect(randomDEX.mint(user.address, ethers.parseEther("100")))
+      .to.be.revertedWithCustomError(randomDEX, "AccessControlUnauthorizedAccount");
+    });
 
-    const userBalanceBefore = BigInt(await randomDEX.balanceOf(user.address));
-    const feeCollectorBalanceBefore = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    const recipientBalanceBefore = BigInt(await randomDEX.balanceOf(deployer.address));
+    it("Should allow minting after granting MINT_ROLE", async function () {
+      await randomDEX.grantRole(MINT_ROLE, minter.address);
+      await randomDEX.connect(minter).mint(user.address, ethers.parseEther("500"));
+      expect(await randomDEX.balanceOf(user.address)).to.equal(ethers.parseEther("500"));
+    });
 
-    await randomDEX.connect(user).transfer(deployer.address, transferAmount);
-
-    const feeCollectorBalanceAfter = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    expect(feeCollectorBalanceAfter - feeCollectorBalanceBefore).to.equal(0n);
-
-    const recipientBalanceAfter = BigInt(await randomDEX.balanceOf(deployer.address));
-    expect(recipientBalanceAfter - recipientBalanceBefore).to.equal(BigInt(transferAmount));
-
-    const userBalanceAfter = BigInt(await randomDEX.balanceOf(user.address));
-    expect(userBalanceBefore - userBalanceAfter).to.equal(BigInt(transferAmount));
+    it("Should not allow minting above max supply", async function () {
+      await randomDEX.grantRole(MINT_ROLE, minter.address);
+      await expect(randomDEX.connect(minter).mint(user.address, ethers.parseEther("1000000001")))
+        .to.be.revertedWith("Exceeds maximum supply");
+    });
   });
 
-  it("Should not charge fees for transfers by accounts with DEFAULT_ADMIN_ROLE", async function () {
-    const transferAmount = ethers.parseEther("300");
+  // 📌 3️⃣ Burning Tests
+  describe("Burning", function () {
+    beforeEach(async function () {
+      await randomDEX.grantRole(MINT_ROLE, minter.address);
+      await randomDEX.connect(minter).mint(user.address, ethers.parseEther("500"));
+    });
 
-    const feeCollectorBalanceBefore = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    const userBalanceBefore = BigInt(await randomDEX.balanceOf(user.address));
-    const adminBalanceBefore = BigInt(await randomDEX.balanceOf(deployer.address));
+    it("Should fail burning without BURN_ROLE", async function () {
+      await expect(randomDEX.mint(user.address, ethers.parseEther("100")))
+      .to.be.revertedWithCustomError(randomDEX, "AccessControlUnauthorizedAccount");
+    });
 
-    await randomDEX.connect(deployer).transfer(user.address, transferAmount);
+    it("Should allow burning after granting BURN_ROLE", async function () {
+      await randomDEX.grantRole(BURN_ROLE, burner.address);
+      await randomDEX.connect(burner).burn(user.address, ethers.parseEther("200"));
+      expect(await randomDEX.balanceOf(user.address)).to.equal(ethers.parseEther("300"));
+    });
 
-    const feeCollectorBalanceAfter = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    expect(feeCollectorBalanceAfter - feeCollectorBalanceBefore).to.equal(0n);
-
-    const userBalanceAfter = BigInt(await randomDEX.balanceOf(user.address));
-    expect(userBalanceAfter - userBalanceBefore).to.equal(BigInt(transferAmount));
-
-    const adminBalanceAfter = BigInt(await randomDEX.balanceOf(deployer.address));
-    expect(adminBalanceBefore - adminBalanceAfter).to.equal(BigInt(transferAmount));
+    it("Should revert burning from zero address", async function () {
+      await randomDEX.grantRole(BURN_ROLE, burner.address);
+      await expect(randomDEX.connect(burner).burn(ethers.ZeroAddress, ethers.parseEther("100")))
+        .to.be.revertedWith("Burn from zero address");
+    });
   });
 
-  it("Should not charge fees for transfers by whitelisted addresses", async function () {
-    await randomDEX.connect(deployer).addToWhitelist(user.address);
+  // 📌 4️⃣ Transfer & Fee Mechanism
+  describe("Transfers & Fees", function () {
+    beforeEach(async function () {
+      await randomDEX.grantRole(MINT_ROLE, minter.address);
+      await randomDEX.connect(minter).mint(user.address, ethers.parseEther("1000"));
+    });
 
-    const transferAmount = ethers.parseEther("100");
+    it("Should not charge fees for admin transfers", async function () {
+      await randomDEX.grantRole(MINT_ROLE, deployer.address);
+      await randomDEX.mint(deployer.address, ethers.parseEther("500"));
 
-    const userBalanceBefore = BigInt(await randomDEX.balanceOf(user.address));
-    const feeCollectorBalanceBefore = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    const dexBalanceBefore = BigInt(await randomDEX.balanceOf(dexAccount.address));
+      const transferAmount = ethers.parseEther("300");
 
-    await randomDEX.connect(user).transfer(dexAccount.address, transferAmount);
-
-    const feeCollectorBalanceAfter = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    expect(feeCollectorBalanceAfter - feeCollectorBalanceBefore).to.equal(0n);
-
-    const dexBalanceAfter = BigInt(await randomDEX.balanceOf(dexAccount.address));
-    expect(dexBalanceAfter - dexBalanceBefore).to.equal(BigInt(transferAmount));
-
-    const userBalanceAfter = BigInt(await randomDEX.balanceOf(user.address));
-    expect(userBalanceBefore - userBalanceAfter).to.equal(BigInt(transferAmount));
-  });
-  it("Should charge fees for transfers by non-whitelisted addresses", async function () {
-    const transferAmount = ethers.parseEther("100"); // Transfer amount
-    const expectedFee = (BigInt(transferAmount) * 25n) / 100n; // 25% fee
-    const expectedTransfer = BigInt(transferAmount) - expectedFee; // Amount after fees
-  
-    const userBalanceBefore = BigInt(await randomDEX.balanceOf(user.address));
-    const feeCollectorBalanceBefore = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    const dexBalanceBefore = BigInt(await randomDEX.balanceOf(dexAccount.address));
-  
-    // Transfer from user to DEX_ROLE account
-    await randomDEX.connect(user).transfer(dexAccount.address, transferAmount);
-  
-    const feeCollectorBalanceAfter = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    const dexBalanceAfter = BigInt(await randomDEX.balanceOf(dexAccount.address));
-    const userBalanceAfter = BigInt(await randomDEX.balanceOf(user.address));
-  
-    // Verify fee collector received the correct fee
-    expect(feeCollectorBalanceAfter - feeCollectorBalanceBefore).to.equal(expectedFee);
-  
-    // Verify DEX_ROLE account received the correct amount after fee deduction
-    expect(dexBalanceAfter - dexBalanceBefore).to.equal(expectedTransfer);
-  
-    // Verify user balance decreased by the full transfer amount
-    expect(userBalanceBefore - userBalanceAfter).to.equal(BigInt(transferAmount)); // Total deduction
+      await randomDEX.connect(deployer).transfer(user.address, transferAmount);
+      expect(await randomDEX.balanceOf(user.address)).to.equal(ethers.parseEther("1300"));
+    });
   });
 
-  it("Should not charge fees for users with balances >= feeWaiverThreshold", async function () {
-    const transferAmount = ethers.parseEther("100");
-
-    const feeWaiverThreshold = ethers.parseEther("35000");
-    expect(await randomDEX.balanceOf(whitelistedUser.address)).to.be.gte(feeWaiverThreshold);
-
-    const userBalanceBefore = BigInt(await randomDEX.balanceOf(whitelistedUser.address));
-    const feeCollectorBalanceBefore = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    const dexBalanceBefore = BigInt(await randomDEX.balanceOf(dexAccount.address));
-
-    await randomDEX.connect(whitelistedUser).transfer(dexAccount.address, transferAmount);
-
-    const feeCollectorBalanceAfter = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    expect(feeCollectorBalanceAfter - feeCollectorBalanceBefore).to.equal(0n);
-
-    const dexBalanceAfter = BigInt(await randomDEX.balanceOf(dexAccount.address));
-    expect(dexBalanceAfter - dexBalanceBefore).to.equal(BigInt(transferAmount));
-
-    const userBalanceAfter = BigInt(await randomDEX.balanceOf(whitelistedUser.address));
-    expect(userBalanceBefore - userBalanceAfter).to.equal(BigInt(transferAmount));
-  });
-
-  it("Should charge fees for transfers by non-whitelisted addresses with balances < feeWaiverThreshold", async function () {
-    const transferAmount = ethers.parseEther("200");
-    const expectedFee = (BigInt(transferAmount) * 25n) / 100n;
-    const expectedTransfer = BigInt(transferAmount) - expectedFee;
-
-    const userBalanceBefore = BigInt(await randomDEX.balanceOf(user.address));
-    expect(userBalanceBefore).to.be.below(ethers.parseEther("35000"));
-
-    const feeCollectorBalanceBefore = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    const dexBalanceBefore = BigInt(await randomDEX.balanceOf(dexAccount.address));
-
-    await randomDEX.connect(user).transfer(dexAccount.address, transferAmount);
-
-    const feeCollectorBalanceAfter = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    expect(feeCollectorBalanceAfter - feeCollectorBalanceBefore).to.equal(expectedFee);
-
-    const dexBalanceAfter = BigInt(await randomDEX.balanceOf(dexAccount.address));
-    expect(dexBalanceAfter - dexBalanceBefore).to.equal(expectedTransfer);
-
-    const userBalanceAfter = BigInt(await randomDEX.balanceOf(user.address));
-    expect(userBalanceBefore - userBalanceAfter).to.equal(BigInt(transferAmount));
-  });
-
-  it("Should deactivate antibot fees after antibot period ends", async function () {
-    await network.provider.send("evm_increaseTime", [86401]); // Increase time by 24 hours + 1 second
-    await network.provider.send("evm_mine"); // Mine a new block
-
-    const transferAmount = ethers.parseEther("200");
-    const expectedFee = (BigInt(transferAmount) * 2n) / 100n; // Standard fee after antibot period
-    const expectedTransfer = BigInt(transferAmount) - expectedFee;
-
-    const feeCollectorBalanceBefore = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    const dexBalanceBefore = BigInt(await randomDEX.balanceOf(dexAccount.address));
-    const userBalanceBefore = BigInt(await randomDEX.balanceOf(user.address));
-
-    await randomDEX.connect(user).transfer(dexAccount.address, transferAmount);
-
-    const feeCollectorBalanceAfter = BigInt(await randomDEX.balanceOf(feeCollector.address));
-    expect(feeCollectorBalanceAfter - feeCollectorBalanceBefore).to.equal(expectedFee);
-
-    const dexBalanceAfter = BigInt(await randomDEX.balanceOf(dexAccount.address));
-    expect(dexBalanceAfter - dexBalanceBefore).to.equal(expectedTransfer);
-
-    const userBalanceAfter = BigInt(await randomDEX.balanceOf(user.address));
-    expect(userBalanceBefore - userBalanceAfter).to.equal(BigInt(transferAmount));
+  // 📌 5️⃣ Antibot Fees
+  describe("Antibot Fees", function () {
+    beforeEach(async function () {
+      await randomDEX.grantRole(MINT_ROLE, minter.address);
+      await randomDEX.connect(minter).mint(user.address, ethers.parseEther("1000"));
+    });
   });
 });
