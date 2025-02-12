@@ -33,7 +33,37 @@ async function main() {
   );
 
   await randomDEX.waitForDeployment();
-  console.log("EthRandomDEX deployed to:", await randomDEX.getAddress());
+  const randomDEXAddress = await randomDEX.getAddress();
+  console.log("RandomDEX deployed to:", randomDEXAddress);
+
+  // Wait for a few block confirmations to ensure the deployment is confirmed
+  console.log("Waiting for block confirmations...");
+  await randomDEX.deploymentTransaction().wait(6);
+
+  // Verify the contract
+  console.log("Verifying contract...");
+  try {
+    await hre.run("verify:verify", {
+      address: randomDEXAddress,
+      constructorArguments: [
+        defaultAdmin,
+        feeCollector,
+        feeMaximumNumerator,
+        feeDenominator,
+        fees,
+        antiBotFees,
+        antibotEndTimestamp,
+        maxSupply
+      ],
+    });
+    console.log("Contract verified successfully!");
+  } catch (error) {
+    if (error.message.toLowerCase().includes("already verified")) {
+      console.log("Contract is already verified!");
+    } else {
+      console.error("Error verifying contract:", error);
+    }
+  }
 }
 
 main()

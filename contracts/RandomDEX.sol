@@ -125,5 +125,6 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
 
         // Transfer the remaining amount
         super._update(from, to, rest);
+        emit TransferCompleted(from, to, rest);
     }
 }
