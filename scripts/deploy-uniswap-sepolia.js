@@ -6,12 +6,12 @@ async function main() {
 
   // Constructor parameters
   const defaultAdmin = deployer.address;
-  const feeCollector = "0x6E236057972C9B0fcD2DaBe64f484812FA8bBD8E"; // You can change this to a different address
+  const feeCollector = deployer.address; // You can change this to a different address
   const feeMaximumNumerator = 5; // 5% maximum fee
   const feeDenominator = 100;
   const fees = {
-    buy: 2,  // 2% buy fee
-    sell: 2   // 2% sell fee
+    buy: 5,  // 2% buy fee
+    sell: 5   // 2% sell fee
   };
   const antiBotFees = {
     buy: 25,  // 25% antibot buy fee
@@ -19,8 +19,11 @@ async function main() {
   };
   const antibotEndTimestamp = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
   const maxSupply = hre.ethers.parseEther("1000000000"); // Equivalent to 1,000,000,000 tokens
+   // Uniswap V2 Router Address on Sepolia
+   const UNISWAP_V2_ROUTER = "0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3";
+
   // Explicitly specify the contract from RandomDEX.sol
-  const RandomDEX = await ethers.getContractFactory("contracts/RandomDEX.sol:RandomDEX");
+  const RandomDEX = await ethers.getContractFactory("contracts/RandomDEXEth.sol:RandomDEXV1");
   const randomDEX = await RandomDEX.deploy(
     defaultAdmin,
     feeCollector,
@@ -29,7 +32,8 @@ async function main() {
     fees,
     antiBotFees,
     antibotEndTimestamp,
-    maxSupply
+    maxSupply,
+    UNISWAP_V2_ROUTER
   );
 
   await randomDEX.waitForDeployment();
@@ -53,7 +57,8 @@ async function main() {
         fees,
         antiBotFees,
         antibotEndTimestamp,
-        maxSupply
+        maxSupply,
+        UNISWAP_V2_ROUTER
       ],
     });
     console.log("Contract verified successfully!");

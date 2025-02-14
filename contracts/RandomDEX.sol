@@ -64,7 +64,6 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
 
         // Grant role to the default admin address
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin_);
-        
     }
 
     /**
@@ -125,6 +124,5 @@ contract RandomDEX is ERC20, ERC20Permit, AccessControl, ERC20Fee {
 
         // Transfer the remaining amount
         super._update(from, to, rest);
-        emit TransferCompleted(from, to, rest);
     }
 }
