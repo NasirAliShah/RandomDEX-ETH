@@ -2,41 +2,49 @@ require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
 
 module.exports = {
-    solidity: "0.8.22",
-    networks: {
-        sepolia: {
-            url: process.env.SEPOLIA_RPC_URL, // Sepolia RPC URL from .env file
-            accounts: [
-                process.env.PRIVATE_KEY,
-                process.env.PRIVATE_KEYY
-            ], // Multiple accounts
-        },
-        base: {  // ✅ Added Base Mainnet Configuration
-            url: process.env.BASE_MAINNET_RPC_URL, // Base Mainnet RPC URL from .env file
-            accounts: [
-                process.env.PRIVATE_KEY,
-                process.env.PRIVATE_KEYY
-            ], // Multiple accounts
-            chainId: 8453, // Base Mainnet Chain ID
-        },
+  solidity: "0.8.22",
+  networks: {
+    sepolia: {
+      url: process.env.SEPOLIA_RPC_URL,
+      accounts: [process.env.PRIVATE_KEY, process.env.PRIVATE_KEYY],
     },
-    etherscan: {
-        apiKey: {
-            sepolia: process.env.ETHERSCAN_API_KEY, // Sepolia Etherscan API Key
-            base: process.env.BASESCAN_API_KEY, // ✅ Added Base Mainnet API Key
-        },
-        customChains: [ // ✅ Add BaseScan support for verification
-            {
-                network: "base",
-                chainId: 8453,
-                urls: {
-                    apiURL: "https://api.basescan.org/api",
-                    browserURL: "https://basescan.org",
-                },
-            },
-        ],
+    base: {
+      url: process.env.BASE_MAINNET_RPC_URL,
+      accounts: [process.env.PRIVATE_KEY, process.env.PRIVATE_KEYY],
+      chainId: 8453,
     },
-    sourcify: {
-        enabled: true
-    }
+    baseSepolia: {
+      url: process.env.BASE_SEPOLIA_RPC_URL,
+      chainId: 84532,
+      accounts: [process.env.PRIVATE_KEY],
+    },
+  },
+  etherscan: {
+    apiKey: {
+      sepolia: process.env.ETHERSCAN_API_KEY, // Ethereum Sepolia
+      base: process.env.BASESCAN_API_KEY,      // Base Mainnet
+      baseSepolia: process.env.BASESCAN_API_KEY, // Base Sepolia (same key as Base Mainnet)
+    },
+    customChains: [
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          apiURL: "https://api.basescan.org/api",
+          browserURL: "https://basescan.org",
+        },
+      },
+      {
+        network: "baseSepolia",
+        chainId: 84532,
+        urls: {
+          apiURL: "https://api-sepolia.basescan.org/api", // Base Sepolia API endpoint
+          browserURL: "https://sepolia.basescan.org",     // Base Sepolia explorer
+        },
+      },
+    ],
+  },
+  sourcify: {
+    enabled: true,
+  },
 };
