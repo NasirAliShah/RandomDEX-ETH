@@ -8,10 +8,10 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "../libraries/ERC20Fee.sol";
 
 /**
- * @title RandomDEXV10
+ * @title RandomDEXV12
  * @notice Charges buy and sell fees on DEX swaps (ETH <-> RDX), swaps fees to ETH, and sends to feeCollector.
  */
-contract RandomDEXV10 is ERC20, ERC20Permit, AccessControl, ERC20Fee {
+contract RandomDEXV12 is ERC20, ERC20Permit, AccessControl, ERC20Fee {
     bytes32 public constant MINT_ROLE = keccak256("MINT_ROLE");
     bytes32 public constant BURN_ROLE = keccak256("BURN_ROLE");
 
@@ -39,8 +39,8 @@ contract RandomDEXV10 is ERC20, ERC20Permit, AccessControl, ERC20Fee {
         uint256 maxSupply_,
         address uniswapRouter_
     )
-        ERC20("RandomDEXV10", "RDXV10")
-        ERC20Permit("RandomDEXV10")
+        ERC20("RandomDEXV12", "RDXV12")
+        ERC20Permit("RandomDEXV12")
         ERC20Fee(
             defaultAdmin_,
             feeCollector_,
@@ -81,8 +81,8 @@ contract RandomDEXV10 is ERC20, ERC20Permit, AccessControl, ERC20Fee {
     }
 
     function burn(address from, uint256 amount) external onlyRole(BURN_ROLE) {
-        require(from != address(0), "RandomDEXV10: invalid sender address");
-        require(amount > 0, "RandomDEXV10: invalid token amount");
+        require(from != address(0), "RandomDEXV12: invalid sender address");
+        require(amount > 0, "RandomDEXV12: invalid token amount");
         _burn(from, amount);
         emit TokensBurned(from, amount);
     }
