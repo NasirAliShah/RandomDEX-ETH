@@ -156,8 +156,7 @@ abstract contract ERC20Fee is ERC20, AccessControl {
         virtual
         returns (uint256 fee, uint256)
     {
-        if (hasRole(DEFAULT_ADMIN_ROLE, sender) || hasRole(DEFAULT_ADMIN_ROLE, from) || hasRole(DEFAULT_ADMIN_ROLE, to))
-        {
+        if (from == address(this) || hasRole(DEFAULT_ADMIN_ROLE, sender) || hasRole(DEFAULT_ADMIN_ROLE, from) || hasRole(DEFAULT_ADMIN_ROLE, to) ){
             return (fee, value);
         }
 
