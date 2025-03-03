@@ -40,4 +40,15 @@ interface RandomDEXErrors {
      * @dev Thrown when a Uniswap token swap transaction fails.
      */
     error SwapFailed();
+    
+    /**
+     * @dev Thrown when a transfer is attempted during the supervised period by an unauthorized account.
+     */
+    error SupervisedTransferRestricted();
+     
+    /**
+     * @dev Thrown when trying to change listing timestamp after token is already listed.
+     */
+    error TokenAlreadyListed();
+
 }
