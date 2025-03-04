@@ -2,7 +2,7 @@ const hre = require("hardhat");
 
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
-  console.log("Deploying RandomDEXClaimV9 with account:", deployer.address);
+  console.log("Deploying RandomDEXClaimV10 with account:", deployer.address);
 
   // Constructor parameters
   const defaultAdmin = deployer.address;
@@ -20,10 +20,10 @@ async function main() {
   const antibotEndTimestamp = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
   const uniswapRouter = "0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3"; // Uniswap V2 Router for Sepolia Testnet
   // Todo
-  const listingTimestamp = Math.floor(Date.now() / 1000) + 2400; // 40 minutes from now Will change it to 1 day 
+  const listingTimestamp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now Will change it to 1 day 
 
   // Explicitly specify the contract from RandomDEXV6.sol
-  const RandomDEX = await ethers.getContractFactory("contracts/RandomDEXClaimV9.sol:RandomDEXClaimV9");
+  const RandomDEX = await ethers.getContractFactory("contracts/RandomDEXClaimV10.sol:RandomDEXClaimV10");
   const randomDEX = await RandomDEX.deploy(
     defaultAdmin,
     feeCollector,
@@ -38,7 +38,7 @@ async function main() {
 
   await randomDEX.waitForDeployment();
   const randomDEXAddress = await randomDEX.getAddress();
-  console.log("RandomDEXClaimV9 deployed to:", randomDEXAddress);
+  console.log("RandomDEXClaimV10 deployed to:", randomDEXAddress);
 
   // Wait for a few block confirmations
   console.log("Waiting for block confirmations...");
