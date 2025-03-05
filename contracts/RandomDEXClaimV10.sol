@@ -146,9 +146,6 @@ contract RandomDEXClaimV10 is
         listingTimestamp = listingTimestamp_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin_);
-        // Remove for mainnet
-        _grantRole(MINT_ROLE, defaultAdmin_);
-        _grantRole(ALLOWED_TRANSFER_FROM_ROLE, defaultAdmin_);
         emit ListingTimestampUpdated(listingTimestamp_);
 
     }

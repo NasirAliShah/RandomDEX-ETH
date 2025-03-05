@@ -67,7 +67,7 @@ describe("RandomDEX Contract", function () {
     it("Should not allow minting above max supply", async function () {
       await randomDEX.grantRole(MINT_ROLE, minter.address);
       await expect(randomDEX.connect(minter).mint(user.address, ethers.parseEther("1000000001")))
-        .to.be.revertedWith("Exceeds maximum supply");
+        .to.be.revertedWith("RandomDEX: maximum supply exceeded");
     });
   });
 
@@ -92,7 +92,7 @@ describe("RandomDEX Contract", function () {
     it("Should revert burning from zero address", async function () {
       await randomDEX.grantRole(BURN_ROLE, burner.address);
       await expect(randomDEX.connect(burner).burn(ethers.ZeroAddress, ethers.parseEther("100")))
-        .to.be.revertedWith("Burn from zero address");
+        .to.be.revertedWith("RandomDEX: invalid sender address");
     });
   });
 
