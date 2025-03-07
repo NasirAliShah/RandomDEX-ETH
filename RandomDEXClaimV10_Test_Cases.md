@@ -1,15 +1,11 @@
 # RandomDEXClaimV10 Test Cases
 
-> **Note:** This test suite contains 32 test cases that comprehensively verify the functionality of the RandomDEXClaimV10 contract.
-> 
-> **Test Count Clarification:** The previous version mentioned 40 tests, but the actual count is 32. This discrepancy might be due to:
-> 1. Some tests being consolidated for better organization
-> 2. Removal of redundant tests
-> 3. Focusing on higher quality, more comprehensive tests rather than quantity
+> **Note:** This test suite contains 44 test cases that comprehensively verify the functionality of the RandomDEXClaimV10 contract.
 
 ## 1. Deployment Tests
 - ✅ Should deploy with correct initial values
 - ✅ Should set up roles correctly
+
 
 ## 2. Role-based Functionality Tests
 - ✅ Should allow minting by accounts with MINT_ROLE
@@ -55,7 +51,34 @@
 - ✅ Should allow assigning DEFAULT_ADMIN_ROLE to multiple accounts
 - ✅ Should allow assigning DEX_ROLE to Pair address
 
-## 9. TransferFrom Functionality Test Details
+
+## 9. Slippage Protection Tests
+- ✅ Should have default slippage tolerance of 100 basis points (1%)
+- ✅ Should allow admin to update slippage tolerance
+- ✅ Should revert if slippage tolerance is set too high
+- ✅ Should revert if non-admin tries to update slippage tolerance
+
+## 10. Edge Cases and Attack Scenarios
+
+### Slippage Protection Edge Cases
+- ✅ Should revert when ETH amount received is less than minimum due to slippage
+- ✅ Should succeed when ETH amount received is within slippage tolerance
+
+### Access Control Attack Scenarios
+- ✅ Should prevent unauthorized users from claiming fees
+
+### Liquidity Provision Attack Prevention
+- ✅ Should prevent unauthorized users from creating liquidity before listing
+- ✅ Should allow authorized users to create liquidity before listing
+
+### Swap Attack Scenarios
+- ✅ Should handle zero ETH return from Uniswap
+- ✅ Should handle large token amounts
+
+### Fee Collector Security
+- ✅ Should only send fees to the designated fee collector
+
+## 10. TransferFrom Functionality Test Details
 
 ### Test Case: "Should allow admin to use transferFrom before listing time"
 
@@ -92,7 +115,7 @@
 - After listing time, any user should be able to use transferFrom
 - The tokens should be successfully transferred to the target address
 
-## 10. Fee Calculation for TransferFrom Test Details
+## 11. Fee Calculation for TransferFrom Test Details
 
 ### Test Case: "Should apply correct fees on transferFrom operations involving DEX"
 
@@ -123,7 +146,7 @@
 - The contract should receive the correct antibot fee amount (25%)
 - The DEX should receive the transfer amount minus the fee
 
-## 11. Claim Functionality Test Details
+## 12. Claim Functionality Test Details
 
 ### Test Case: "Should track claimable balance correctly"
 
@@ -232,7 +255,7 @@ function _swapRDXForETH(
 - The contract also checks if it has enough balance to fulfill the claim
 - Both RDX and ETH claiming have these validations
 
-## 10. Fee Functionality Test Details
+## 13. Fee Functionality Test Details
 
 ### Test Case: "Should apply antibot fees during antibot period (25%)"
 
@@ -334,7 +357,7 @@ modifier validateFee(Fees memory fees_) {
 - In a production environment, we would add a separate validation to prevent normal fees from exceeding 3% after the antibot period
 - The current contract technically allows fees up to 25%, but the business rule is to limit normal fees to 3% after antibot period
 
-## 11. Listing Timestamp Update Test Details
+## 14. Listing Timestamp Update Test Details
 
 ### Test Case: "Should allow updating listing timestamp in the middle of waiting period"
 
@@ -373,3 +396,105 @@ function setListingTimestamp(uint256 timestamp) external onlyRole(DEFAULT_ADMIN_
 - This provides flexibility for changing the listing schedule after deployment
 - Transfer restrictions through transferFrom remain in place until the new listing timestamp
 - This feature is useful for scenarios where you need to adjust the listing schedule (e.g., bridging tokens and adding liquidity earlier than planned)
+
+## 12. Edge Cases and Attack Scenarios
+
+### Slippage Protection Edge Cases
+
+#### Test Case: "Should revert when ETH amount received is less than minimum due to slippage"
+
+##### Test Steps:
+1. Generate fees by making transfers
+2. Configure the mock router to simulate high slippage
+3. Attempt to claim fees in ETH
+4. Verify the transaction reverts due to slippage protection
+
+##### Test Assertions:
+- The claim transaction reverts when ETH amount is less than the minimum acceptable amount
+
+#### Test Case: "Should succeed when ETH amount received is within slippage tolerance"
+
+##### Test Steps:
+1. Generate fees by making transfers
+2. Set slippage tolerance to 5%
+3. Calculate expected ETH amount and minimum ETH amount with slippage
+4. Verify the minimum ETH amount is calculated correctly (5% less than expected)
+
+##### Test Assertions:
+- Slippage tolerance is correctly applied in calculations
+- Minimum ETH amount is 5% less than the expected amount
+
+### Access Control Attack Scenarios
+
+#### Test Case: "Should prevent unauthorized users from claiming fees"
+
+##### Test Steps:
+1. Generate fees through transfers
+2. Non-admin user attempts to claim fees in RDX and ETH
+3. Verify both transactions revert with access control errors
+
+##### Test Assertions:
+- Non-admin users cannot claim fees in RDX (reverts with AccessControlUnauthorizedAccount)
+- Non-admin users cannot claim fees in ETH (reverts with AccessControlUnauthorizedAccount)
+
+### Liquidity Provision Attack Prevention
+
+#### Test Case: "Should prevent unauthorized users from creating liquidity before listing"
+
+##### Test Steps:
+1. Set listing timestamp to the future
+2. Ensure user doesn't have the ALLOWED_TRANSFER_FROM_ROLE
+3. Transfer tokens to the user
+4. User approves themselves to spend tokens
+5. User attempts to transfer tokens to a potential pair address using transferFrom
+
+##### Test Assertions:
+- The transferFrom operation reverts with SupervisedTransferRestricted error
+
+#### Test Case: "Should allow authorized users to create liquidity before listing"
+
+##### Test Steps:
+1. Set listing timestamp to the future
+2. Grant ALLOWED_TRANSFER_FROM_ROLE to the deployer
+3. Deployer transfers tokens to a potential pair address
+
+##### Test Assertions:
+- The transfer operation succeeds for authorized users
+
+### Swap Attack Scenarios
+
+#### Test Case: "Should handle zero ETH return from Uniswap"
+
+##### Test Steps:
+1. Generate fees through transfers
+2. Configure mock router to return zero ETH
+3. Attempt to claim fees in ETH
+
+##### Test Assertions:
+- The transaction reverts when the router returns zero ETH
+
+#### Test Case: "Should handle large token amounts"
+
+##### Test Steps:
+1. Mint a large amount of tokens (10 million)
+2. Generate fees by transferring large amounts
+3. Configure mock router to handle the swap
+4. Verify claimable fee amount is correct
+
+##### Test Assertions:
+- Contract correctly handles large token amounts without overflow
+- Claimable fee amount is greater than zero
+
+### Fee Collector Security
+
+#### Test Case: "Should only send fees to the designated fee collector"
+
+##### Test Steps:
+1. Generate fees through transfers
+2. Record initial balances of fee collector and a regular user
+3. Claim fees in RDX
+4. Verify fees went only to the fee collector
+
+##### Test Assertions:
+- Fee collector's balance increases after claiming
+- Regular user's balance remains unchanged

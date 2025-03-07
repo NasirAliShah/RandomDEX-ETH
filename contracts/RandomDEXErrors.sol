@@ -51,4 +51,9 @@ interface RandomDEXErrors {
      */
     error TokenAlreadyListed();
 
+    /**
+     * @dev Thrown when attempting to set slippage tolerance above the maximum allowed value.
+     */
+    error SlippageToleranceTooHigh();
+
 }
