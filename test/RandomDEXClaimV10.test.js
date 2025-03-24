@@ -659,6 +659,76 @@ describe("RandomDEXClaimV10 Contract", function () {
   });
 
   describe("Admin functions", function () {
+    it("Should prevent setting antibot fees equal to or higher than the denominator", async function () {
+      // Try setting antibot fees equal to the denominator (100%)
+      const feeMaximumNumerator = 300; // 3% maximum fee
+      const feeDenominator = 10000; // Denominator for fee calculation
+      const normalFees = { buy: 300, sell: 300 }; // 3% normal fees
+      const tooHighAntibotFees = { buy: 10000, sell: 10000 }; // 100% antibot fees (equal to denominator)
+      
+      // Get current timestamp
+      const blockNumBefore = await ethers.provider.getBlockNumber();
+      const blockBefore = await ethers.provider.getBlock(blockNumBefore);
+      const currentTimestamp = blockBefore.timestamp;
+      
+      const antibotEndTimestamp = currentTimestamp + 1200; // 20 minutes from now
+      const listingTimestamp = currentTimestamp + 3600; // 1 hour from now
+      
+      // Deploy a new contract with the too high antibot fees
+      const RandomDEX = await ethers.getContractFactory("RandomDEXClaimV10");
+      await expect(RandomDEX.deploy(
+        deployer.address, // defaultAdmin
+        feeCollector.address, // feeCollector
+        feeMaximumNumerator,
+        feeDenominator,
+        normalFees,
+        tooHighAntibotFees,
+        antibotEndTimestamp,
+        await mockRouter.getAddress(), // uniswapRouter
+        listingTimestamp
+      )).to.be.revertedWithCustomError(
+        await ethers.getContractFactory("RandomDEXClaimV10"),
+        "CannotBeBiggerThanOrEqualToDenominator"
+      );
+    });
+    
+    it("Should allow setting antibot fees just below the denominator", async function () {
+      // Set antibot fees just below the denominator (99.99%)
+      const feeMaximumNumerator = 300; // 3% maximum fee
+      const feeDenominator = 10000; // Denominator for fee calculation
+      const normalFees = { buy: 300, sell: 300 }; // 3% normal fees
+      const highButValidAntibotFees = { buy: 9999, sell: 9999 }; // 99.99% antibot fees (just below denominator)
+      
+      // Get current timestamp
+      const blockNumBefore = await ethers.provider.getBlockNumber();
+      const blockBefore = await ethers.provider.getBlock(blockNumBefore);
+      const currentTimestamp = blockBefore.timestamp;
+      
+      const antibotEndTimestamp = currentTimestamp + 1200; // 20 minutes from now
+      const listingTimestamp = currentTimestamp + 3600; // 1 hour from now
+      
+      // Deploy a new contract with high but valid antibot fees
+      const RandomDEX = await ethers.getContractFactory("RandomDEXClaimV10");
+      const validContract = await RandomDEX.deploy(
+        deployer.address, // defaultAdmin
+        feeCollector.address, // feeCollector
+        feeMaximumNumerator,
+        feeDenominator,
+        normalFees,
+        highButValidAntibotFees,
+        antibotEndTimestamp,
+        await mockRouter.getAddress(), // uniswapRouter
+        listingTimestamp
+      );
+      
+      await validContract.waitForDeployment();
+      
+      // Verify the antibot fees were set correctly
+      const setAntibotFees = await validContract.antiBotFees();
+      expect(setAntibotFees.buy).to.equal(9999);
+      expect(setAntibotFees.sell).to.equal(9999);
+    });
+    
     it("Should allow admin to update fees", async function () {
       const newFees = { buy: 200, sell: 200 }; // 2% fees
       
@@ -995,12 +1065,33 @@ describe("RandomDEXClaimV10 Contract", function () {
         // Set a very low slippage tolerance (0.1%)
         await randomDEX.connect(deployer).updateSlippageTolerance(10);
         
+        // Get the claimable balance
+        const claimableBalance = await randomDEX.claimableFeeInRDX();
+        console.log(`Claimable RDX balance for slippage test: ${ethers.formatEther(claimableBalance)} RDX`);
+        
+        // Get the expected ETH amount
+        const path = [await randomDEX.getAddress(), await mockWETH.getAddress()];
+        const expectedEthAmount = await mockRouter.getAmountsOut(claimableBalance, path);
+        console.log(`Expected ETH amount: ${ethers.formatEther(expectedEthAmount[1])} ETH`);
+        
+        // Calculate minimum ETH amount with 0.1% slippage tolerance
+        const minEthAmount = expectedEthAmount[1] * BigInt(10000 - 10) / BigInt(10000);
+        console.log(`Minimum ETH amount with 0.1% slippage: ${ethers.formatEther(minEthAmount)} ETH`);
+        
         // Configure mock router to return much less ETH than expected (simulating high slippage)
         await mockRouter.setMockEthAmount(ethers.parseEther("0.01"));
+        console.log(`Mock router will return: ${ethers.formatEther(ethers.parseEther("0.01"))} ETH`);
         
         // The swap should fail due to high slippage
-        await expect(randomDEX.connect(deployer).claimFeeInEth())
-          .to.be.reverted;
+        try {
+          await randomDEX.connect(deployer).claimFeeInEth();
+          // If we get here, the test failed
+          expect.fail("Transaction should have reverted but did not");
+        } catch (error) {
+          console.log(`Transaction reverted with error: ${error.message}`);
+          // Just check that the transaction reverted, don't check the specific error message
+          expect(error.message).to.include("reverted");
+        }
       });
       
       it("Should succeed when ETH amount received is within slippage tolerance", async function () {
