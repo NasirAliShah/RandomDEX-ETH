@@ -62,7 +62,6 @@ async function getEventsInChunks(contract, eventFilter, fromBlock, toBlock, chun
 async function main() {
   // ✅ Addresses for Sepolia testnet
   const UNISWAP_FACTORY = "0xF62c03E08ada871A0bEb309762E260a7a6a880E6"; // Uniswap V2 Factory (Sepolia)
-  const UNISWAP_ROUTER = "0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3"; // Uniswap V2 Router (Sepolia)
   const WETH_ADDRESS = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"; // WETH Address on Sepolia
   
   // ✅ Using the provided Alchemy RPC URL for better performance
